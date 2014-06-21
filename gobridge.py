@@ -58,8 +58,8 @@ class StateMachine(object):
         if code == '9':
             print(msg)
             print('Game over')
-            conn.write('quit\r\n'.encode())
-            conn.close()
+            self.conn.write('quit\r\n'.encode())
+            self.conn.close()
             sys.exit()
         return self.result_state
     
