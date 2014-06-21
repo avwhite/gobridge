@@ -7,18 +7,26 @@ class StateMachine(object):
         self.password = password
 
     def run(self):
-        host = "igs.joyjoy.net"
-        port = 6969
-        self.conn = telnetlib.Telnet(host, port)
-        print('Connected to remote host')
-
-        self.conn.read_until('Login:'.encode())
-        self.conn.write((self.username + '\r\n').encode())
-
-        state = self.password_state
         while True:
-            (code, _, msg) = self.conn.read_until('\r\n'.encode()).decode().partition(' ')
-            state = state(code.strip(), msg.strip())
+            host = "igs.joyjoy.net"
+            port = 6969
+            self.conn = telnetlib.Telnet(host, port)
+            print('Connected to remote host')
+
+            self.conn.read_until('Login:'.encode())
+            self.conn.write((self.username + '\r\n').encode())
+
+            state = self.password_state
+            while True:
+                try:
+                    resp = self.conn.read_until('\r\n'.encode()).decode()
+                    (code, _, msg) = resp.partition(' ')
+                    state = state(code.strip(), msg.strip())
+                except EOFError:
+                    self.conn.close()
+                    print('Disconnected from IGS.')
+                    print('Trying to reconnect')
+                    break
         
     def password_state(self, code, msg):
         #print('entering password state', code, msg, file=sys.stderr)
