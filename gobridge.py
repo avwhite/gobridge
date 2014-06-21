@@ -1,71 +1,60 @@
 import telnetlib, sys, time
 
-def skip_to_prompt(igs):
-    (code, _, msg) = igs.read_until('\r\n'.encode()).decode().partition(' ')
-    while code.isdigit() and int(code) == 1 and int(msg[0]) == 5:
-        line = igs.read_until('\r\n'.encode()).decode()
+class StateMachine(object):
+    def __init__(self, username, password, gamenum):
+        self.gamenum = gamenum
+        self.username = username
+        self.password = password
+
+    def run(self):
+        host = "igs.joyjoy.net"
+        port = 6969
+        self.conn = telnetlib.Telnet(host, port)
+        print('Connected to remote host')
+
+        self.conn.read_until('Login:'.encode())
+        self.conn.write((self.username + '\r\n').encode())
+
+        state = self.password_state
+        while True:
+            (code, _, msg) = self.conn.read_until('\r\n'.encode()).decode().partition(' ')
+            state = state(code.strip(), msg.strip())
+        
+    def password_state(self, code, msg):
+        #print('entering password state', code, msg, file=sys.stderr)
+        if code == '1' and msg == '1':
+            print('ehj')
+            self.conn.write((self.password + '\r\n').encode())
+            return self.observegame_state
+        return self.password_state
+
+    def observegame_state(self, code, msg):
+        #print('entering observegame state', self.gamenum, file=sys.stderr)
+        if code == '1' and msg == '5':
+            self.conn.write(('moves ' + self.gamenum + '\r\n').encode())
+            self.conn.write(('observe ' + self.gamenum + '\r\n').encode())
+            return self.observing_state
+        return self.observegame_state
+
+    def observing_state(self, code, msg):
+        #print('entering observing state', code, msg, file=sys.stderr)
+        if code == '22':
+            print('Game over. Awaiting result')
+            return self.result_state
+        elif code == '15':
+            print(msg)
+        return self.observing_state
+
+    def result_state(self, code, msg):
+        #print('entering result state', file=sys.stderr)
+        if code == '9':
+            print(msg)
+            print('Game over')
+            conn.write('quit\r\n'.encode())
+            conn.close()
+            sys.exit()
+        return self.result_state
     
 if __name__ == "__main__":
-     
-     
-    host = "igs.joyjoy.net"
-    port = 6969
-    gamenum = sys.argv[1]
-     
-    igs = telnetlib.Telnet(host, port)
-     
-    print('Connected to remote host')
-
-    igs.read_until('Login:'.encode())
-    igs.write('vwhite\r\n'.encode())
-
-    observing = False
-
-    while True:
-        (code, _, msg) = igs.read_until('\r\n'.encode()).decode().partition(' ')
-        if code.isdigit():
-            icode = int(code)
-            if icode == 1:
-                code = int(msg[0])
-                if code == 1:
-                    igs.write('131172an\r\n'.encode())
-                elif code == 5 and observing == False:
-                    observing = True
-                    igs.write(('moves ' + gamenum + '\r\n').encode())
-                    igs.write(('observe ' + gamenum + '\r\n').encode())
-            elif icode == 15:
-                print(msg)
-            elif icode == 22:
-                print(msg)
-            elif icode == 9:
-                print(msg)
-
-    igs.close()
-     
-#    while True:
-#        data = s.read_eager().decode()
-#        sys.stdout.write(data)
-#            
-#        msg = sys.stdin.readline()
-#        s.write(msg.encode('utf-8'))
-#
-#        socket_list = [sys.stdin, s]
-#         
-#        # Get the list sockets which are readable
-#        read_sockets, write_sockets, error_sockets = select.select(socket_list , [], [])
-#         
-#        for sock in read_sockets:
-#            #incoming message from remote server
-#            if sock == s:
-#                data = sock.recv(4096)
-#                if not data :
-#                    print 'Connection closed'
-#                    sys.exit()
-#                else :
-#                    #print data
-#                    sys.stdout.write(data)
-#             
-#            #user entered a message
-#            else :
-#                msg = sys.stdin.readline()
-#                s.send(msg)
+    m = StateMachine(sys.argv[1], sys.argv[2], sys.argv[3])
+    m.run()
