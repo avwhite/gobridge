@@ -29,15 +29,12 @@ class StateMachine(object):
                     break
         
     def password_state(self, code, msg):
-        #print('entering password state', code, msg, file=sys.stderr)
         if code == '1' and msg == '1':
-            print('ehj')
             self.conn.write((self.password + '\r\n').encode())
             return self.observegame_state
         return self.password_state
 
     def observegame_state(self, code, msg):
-        #print('entering observegame state', self.gamenum, file=sys.stderr)
         if code == '1' and msg == '5':
             self.conn.write(('moves ' + self.gamenum + '\r\n').encode())
             self.conn.write(('observe ' + self.gamenum + '\r\n').encode())
@@ -45,7 +42,6 @@ class StateMachine(object):
         return self.observegame_state
 
     def observing_state(self, code, msg):
-        #print('entering observing state', code, msg, file=sys.stderr)
         if code == '22':
             print('Game over. Awaiting result')
             return self.result_state
@@ -54,7 +50,6 @@ class StateMachine(object):
         return self.observing_state
 
     def result_state(self, code, msg):
-        #print('entering result state', file=sys.stderr)
         if code == '9':
             print(msg)
             print('Game over')
