@@ -1,10 +1,11 @@
 import telnetlib, sys, time
 
 class StateMachine(object):
-    def __init__(self, username, password, gamenum):
+    def __init__(self, username, password, gamenum, mode):
         self.gamenum = gamenum
         self.username = username
         self.password = password
+        self.mode = mode
 
     def run(self):
         while True:
@@ -31,8 +32,24 @@ class StateMachine(object):
     def password_state(self, code, msg):
         if code == '1' and msg == '1':
             self.conn.write((self.password + '\r\n').encode())
-            return self.observegame_state
+            if self.mode == 'list': return self.listgames_state
+            elif self.mode == 'observe': return self.observegame_state
         return self.password_state
+
+    def listgames_state(self, code, msg):
+        if code == '1' and msg == '5':
+            self.conn.write(('games' + '\r\n').encode())
+            return self.printgames_state
+        return self.listgames_state
+
+    def printgames_state(self, code, msg):
+        if code == '7':
+            print(msg)
+            return self.printgames_state
+        if code == '1' and msg == '5':
+            self.conn.write('quit\r\n'.encode())
+            self.conn.close()
+            sys.exit()
 
     def observegame_state(self, code, msg):
         if code == '1' and msg == '5':
@@ -59,5 +76,5 @@ class StateMachine(object):
         return self.result_state
     
 if __name__ == "__main__":
-    m = StateMachine(sys.argv[1], sys.argv[2], sys.argv[3])
+    m = StateMachine(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
     m.run()
