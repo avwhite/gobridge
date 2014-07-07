@@ -1,39 +1,16 @@
-import telnetlib, sys, time
+import telnetlib, sys, time, argparse
 
-class StateMachine(object):
-    def __init__(self, username, password, gamenum, mode):
-        self.gamenum = gamenum
+class ListMachine(object):
+    def __init__(self, username, password):
         self.username = username
         self.password = password
-        self.mode = mode
 
-    def run(self):
-        while True:
-            host = "igs.joyjoy.net"
-            port = 6969
-            self.conn = telnetlib.Telnet(host, port)
-            print('Connected to remote host')
-
-            self.conn.read_until('Login:'.encode())
-            self.conn.write((self.username + '\r\n').encode())
-
-            state = self.password_state
-            while True:
-                try:
-                    resp = self.conn.read_until('\r\n'.encode()).decode()
-                    (code, _, msg) = resp.partition(' ')
-                    state = state(code.strip(), msg.strip())
-                except EOFError:
-                    self.conn.close()
-                    print('Disconnected from IGS.')
-                    print('Trying to reconnect')
-                    break
+    def first_state(self): return self.password_state
         
     def password_state(self, code, msg):
         if code == '1' and msg == '1':
             self.conn.write((self.password + '\r\n').encode())
-            if self.mode == 'list': return self.listgames_state
-            elif self.mode == 'observe': return self.observegame_state
+            return self.listgames_state
         return self.password_state
 
     def listgames_state(self, code, msg):
@@ -50,6 +27,20 @@ class StateMachine(object):
             self.conn.write('quit\r\n'.encode())
             self.conn.close()
             sys.exit()
+
+class ObserveMachine(object):
+    def __init__(self, username, password, gamenum):
+        self.gamenum = gamenum
+        self.username = username
+        self.password = password
+
+    def first_state(self): return self.password_state
+        
+    def password_state(self, code, msg):
+        if code == '1' and msg == '1':
+            self.conn.write((self.password + '\r\n').encode())
+            return self.observegame_state
+        return self.password_state
 
     def observegame_state(self, code, msg):
         if code == '1' and msg == '5':
@@ -76,5 +67,45 @@ class StateMachine(object):
         return self.result_state
     
 if __name__ == "__main__":
-    m = StateMachine(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
-    m.run()
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument("username")
+    arg_parser.add_argument("password")
+
+    subparsers = arg_parser.add_subparsers(
+        description='use -h to see usage for the diffferent commands',
+        title='subcommands')
+    parser_list = subparsers.add_parser('list', help='list games on IGS')
+    parser_list.set_defaults(command='list')
+    parser_observe = subparsers.add_parser('observe', help='Relay a game from IGS to GOS')
+    parser_observe.add_argument('gamenum', help='The game number on IGS')
+    parser_observe.set_defaults(command='observe')
+
+    arg_parser.parse_args()
+
+    args = arg_parser.parse_args()
+
+    if args.command == 'list':
+        m = ListMachine(args.username, args.password)
+    elif args.command == 'observe':
+        m = ObserveMachine(args.username, args.password, args.gamenum)
+
+    while True:
+        host = "igs.joyjoy.net"
+        port = 6969
+        m.conn = telnetlib.Telnet(host, port)
+        print('Connected to remote host')
+
+        m.conn.read_until('Login:'.encode())
+        m.conn.write((m.username + '\r\n').encode())
+ 
+        state = m.first_state()
+        while True:
+            try:
+                resp = m.conn.read_until('\r\n'.encode()).decode()
+                (code, _, msg) = resp.partition(' ')
+                state = state(code.strip(), msg.strip())
+            except EOFError:
+                m.conn.close()
+                print('Disconnected from IGS.')
+                print('Trying to reconnect')
+                break
